@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import LogoutButton from "./LogoutButton";
+import CoverLetterGenerator from "./CoverLetterGenerator";
+import JobCreator from "./JobCreator";
 
 type Profile = {
   email: string | null;
@@ -95,6 +97,8 @@ export default function DashboardPage() {
           <span className="font-semibold">{profile?.credits_remaining ?? 0}</span>
         </p>
       </div>
+      <JobCreator />
+      <CoverLetterGenerator />
     </main>
   );
 }
