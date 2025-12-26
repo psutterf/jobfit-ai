@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabase/client";
 import LogoutButton from "./LogoutButton";
 import CoverLetterGenerator from "./CoverLetterGenerator";
 import JobCreator from "./JobCreator";
+import DocumentsList from "./DocumentsList";
 
 type Profile = {
   email: string | null;
@@ -99,6 +100,7 @@ export default function DashboardPage() {
       </div>
       <JobCreator />
       <CoverLetterGenerator />
+      <DocumentsList />
     </main>
   );
 }
