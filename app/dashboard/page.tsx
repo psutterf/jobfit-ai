@@ -8,6 +8,7 @@ import CoverLetterGenerator from "./CoverLetterGenerator";
 import JobCreator from "./JobCreator";
 import DocumentsList from "./DocumentsList";
 import ResumeTailor from "./ResumeTailor";
+import ResumeGenerator from "./ResumeGenerator";
 
 type Profile = {
   email: string | null;
@@ -84,7 +85,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <main className="p-6 space-y-4">
+    <main className="p-6 space-y-4 max-w-full overflow-x-hidden">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Dashboard</h1>
         <LogoutButton />
@@ -100,6 +101,7 @@ export default function DashboardPage() {
         </p>
       </div>
       <JobCreator />
+      <ResumeGenerator />
       <CoverLetterGenerator />
       <ResumeTailor />
       <DocumentsList />
