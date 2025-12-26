@@ -18,12 +18,23 @@ type Job = {
     role: string | null;
     created_at: string;
 };
+
+type ResumeDoc = {
+    id: string;
+    title: string | null;
+    type: string | null;
+    created_at: string;
+  };
+
+  
   
 
 export default function CoverLetterGenerator() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [jobsLoading, setJobsLoading] = useState(true);
     
+  const [resumes, setResumes] = useState<ResumeDoc[]>([]);
+  const [resumeId, setResumeId] = useState<string>("");
 
   const [jobId, setJobId] = useState("");
   const [tone, setTone] = useState<Tone>("professional");
@@ -54,6 +65,11 @@ export default function CoverLetterGenerator() {
       const token = data.session?.access_token;
       if (!token) throw new Error("Not authenticated");
 
+      if (!resumeId) {
+        setError("Please select a resume to base the cover letter on.");
+        return;
+      }      
+
       const res = await fetch("/api/cover-letter", {
         method: "POST",
         headers: {
@@ -62,6 +78,7 @@ export default function CoverLetterGenerator() {
         },
         body: JSON.stringify({
           jobId,
+          resumeId,
           tone,
           userFullName: fullName || undefined,
           userAddressLine1: address1 || undefined,
@@ -96,6 +113,20 @@ export default function CoverLetterGenerator() {
         setJobsLoading(false);
         return;
       }
+
+      const { data: resumeDocs, error: resumeErr } = await supabase
+        .from("documents")
+        .select("id, title, type, created_at")
+        .eq("user_id", user.id)
+        .in("type", ["resume", "tailored_resume"])
+        .order("created_at", { ascending: false });
+
+        if (!resumeErr && resumeDocs) {
+            setResumes(resumeDocs as ResumeDoc[]);
+        // Optional: auto-pick most recent resume if nothing selected
+            if (!resumeId && resumeDocs.length > 0) setResumeId(resumeDocs[0].id);
+        }
+
   
       const { data, error } = await supabase
         .from("jobs")
@@ -135,6 +166,20 @@ export default function CoverLetterGenerator() {
             </option>
             ))}
         </select>
+        <label className="text-sm text-gray-500">Select Resume *</label>
+        <select
+            className="w-full rounded-md border bg-transparent p-2"
+            value={resumeId}
+            onChange={(e) => setResumeId(e.target.value)}
+        >
+         <option value="">Choose a resume</option>
+         {resumes.map((r) => (
+            <option key={r.id} value={r.id}>
+            {(r.title ?? "(Untitled)") + ` — ${r.type ?? "resume"}`}
+            </option>
+         ))}
+        </select>
+
 
         {!jobsLoading && jobs.length === 0 && (
             <p className="text-xs text-gray-500">

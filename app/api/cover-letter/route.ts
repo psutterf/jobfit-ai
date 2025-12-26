@@ -13,21 +13,23 @@ type Tone =
   | "enthusiastic";
 
 type Body = {
-  jobId: string;
-  tone?: Tone;
+    jobId: string;
+    resumeId: string; 
+    tone?: Tone;
 
-  // user-provided header fields (optional; can be generated)
-  userFullName?: string;
-  userAddressLine1?: string;
-  userCityStateZip?: string;
-  userPhone?: string;
-  userEmail?: string;
+    // user-provided header fields (optional; can be generated)
+    userFullName?: string;
+    userAddressLine1?: string;
+    userCityStateZip?: string;
+    userPhone?: string;
+    userEmail?: string;
 
-  // optional overrides
-  companyName?: string;
-  hiringManagerName?: string; // if blank -> "Hiring Manager"
-  dateText?: string; // if blank -> generated like "MONTH DAY, YEAR"
+    // optional overrides
+    companyName?: string;
+    hiringManagerName?: string;
+    dateText?: string;
 };
+  
 
 function requireEnv(name: string): string {
   const v = process.env[name];
@@ -114,9 +116,14 @@ export async function POST(req: Request) {
     });
 
     const body = (await req.json()) as Body;
+
     if (!body?.jobId) {
-      return NextResponse.json({ error: "jobId is required" }, { status: 400 });
+        return NextResponse.json({ error: "jobId is required" }, { status: 400 });
     }
+    if (!body?.resumeId) {
+        return NextResponse.json({ error: "resumeId is required" }, { status: 400 });
+    }
+
 
     const tone: Tone = body.tone ?? "professional";
 
@@ -138,13 +145,35 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Job not found" }, { status: 404 });
     }
 
+    // Load resume doc (must belong to this user)
+    const { data: resumeDoc, error: resumeErr } = await supabase
+        .from("documents")
+        .select("id, title, type, content_text, created_at")
+        .eq("id", body.resumeId)
+        .eq("user_id", user.id)
+        .in("type", ["resume", "tailored_resume"])
+        .single();
+
+    if (resumeErr || !resumeDoc) {
+        return NextResponse.json({ error: "Resume not found" }, { status: 404 });
+    }
+
+    const resumeText = (resumeDoc.content_text ?? "").trim();
+    if (!resumeText) {
+        return NextResponse.json(
+            { error: "Selected resume has no text content to use." },
+            { status: 400 }
+        );
+    }
+
+
     // Consume 1 credit (adjust later)
     // Uses the SQL function we created
     const { data: newBalance, error: creditErr } = await supabase.rpc("consume_credits", {
       p_user_id: user.id,
       p_amount: 1,
       p_reason: "cover_letter_generation",
-      p_metadata: { jobId: job.id, tone },
+      p_metadata: { jobId: job.id, resumeId: body.resumeId, tone },
     });
 
     if (creditErr) {
@@ -168,30 +197,35 @@ export async function POST(req: Request) {
     const dateText = formatDate(body.dateText);
 
     const prompt = `
-Write a cover letter for the job below.
+    Write a cover letter for the job below.
 
-STYLE:
-${toneInstructions(tone)}
+    STYLE:
+    ${toneInstructions(tone)}
 
-RULES:
-- Do NOT include any header lines, addresses, date, "Dear ...", or signature.
-- Output only the main cover letter paragraphs.
-- Mention the company name and role naturally.
-- Use specific, concrete achievements and metrics when possible (if none provided, keep claims reasonable and general).
-- Keep it ATS-friendly. No emojis. No markdown.
+    RULES:
+    - Use the RESUME to ground specifics: skills, projects, tools, achievements.
+    - Do NOT invent employers, degrees, certifications, or metrics not present in the resume.
+    - Avoid generic filler and repetition (no "I am excited..." + "I am particularly drawn..." every time).
+    - Vary sentence openers. Prefer concrete details over adjectives.
+    - Keep it ATS-friendly. No emojis. No markdown.
+    - Output only the main cover letter paragraphs (no header, addresses, date, "Dear ...", or signature).
 
-JOB:
-Company: ${companyName}
-Role: ${job.role ?? ""}
-Job description:
-${job.job_description ?? ""}
+    JOB:
+    Company: ${companyName}
+    Role: ${job.role ?? ""}
+    Job description:
+    ${job.job_description ?? ""}
 
-CANDIDATE (user-provided fields; may be placeholders):
-Name: ${headerName}
-Email: ${headerEmail}
-Phone: ${phone}
-Location: ${cityStateZip}
-`;
+    RESUME (authoritative source of truth for candidate facts):
+    ${resumeText}
+
+    CANDIDATE HEADER (may be placeholders):
+    Name: ${headerName}
+    Email: ${headerEmail}
+    Phone: ${phone}
+    Location: ${cityStateZip}
+    `;
+
 
     const letterBody = await callOpenAI(prompt);
 
@@ -229,6 +263,9 @@ ${headerName}
           tone,
           companyName,
           hiringManager,
+          resumeId: resumeDoc.id,          
+          resumeTitle: resumeDoc.title,    
+          resumeType: resumeDoc.type,      
           credits_after: newBalance,
           generated_at: new Date().toISOString(),
         },
