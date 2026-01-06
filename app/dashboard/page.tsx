@@ -9,6 +9,7 @@ import JobCreator from "./JobCreator";
 import DocumentsList from "./DocumentsList";
 import ResumeTailor from "./ResumeTailor";
 import ResumeGenerator from "./ResumeGenerator";
+import ResumeUpload from "./ResumeUpload";
 
 type Profile = {
   email: string | null;
@@ -101,6 +102,7 @@ export default function DashboardPage() {
         </p>
       </div>
       <JobCreator />
+      <ResumeUpload />
       <ResumeGenerator />
       <CoverLetterGenerator />
       <ResumeTailor />
